@@ -1,0 +1,59 @@
+import configparser
+import oandapy as opy
+import pandas as pd
+import numpy as np
+import re
+
+#initializing the API access for oanda
+config = configparser.ConfigParser()
+config.read('oanda.cfg')
+
+oanda = opy.API(environment='practice',
+                access_token=config['oanda']['access_token'])
+
+#exracting eco calendar date from  CSV
+
+                        #PUT THE ECO CALENDAR FILE YOU WANT TO EXTRACT HERE
+csv_file = pd.read_csv('/Users/sebkleynhans/Desktop/OandaFX/2009_2017InterestRateDecisions.csv' , encoding = "ISO-8859-1" )
+
+arr = np.array(csv_file)
+
+#putting date, time and instrument into the oandapy
+
+i_eco = 0
+eco = []
+
+while i_eco < 635: #635 is hard coded
+    
+    date_less = arr[i_eco][0]
+    time_less = arr[i_eco][2]
+    date_plus = arr[i_eco][5]
+    time_plus = arr[i_eco][6]
+    date = arr[i_eco][3]
+    name = arr[i_eco][7]
+    instr = arr[i_eco][9]
+    
+    #Printing the times to audit the program
+    print(date_less)
+    print(time_less)
+    print(date_plus)
+    print(time_plus)
+    print(date_less+'T'+time_less)
+    print(date_plus+'T'+time_plus)
+
+    data = oanda.get_history(instrument=instr,
+                         start=date_less+'T'+time_less,   #t = -0.0125 or 18mins before the event
+                         end= date_plus+'T'+time_plus,   #t = +0.125 or 3hours after the event
+                         alignmentTimezone='GMT',
+                         granularity='M1')
+
+    #structuring the data
+    df= pd.DataFrame(data['candles']).set_index('time')
+
+    df.index = pd.DatetimeIndex(df.index)
+    
+    #amending data to csv
+
+    df.to_csv(instr+date+name+'.csv')
+
+    i_eco = i_eco + 1
