@@ -23,7 +23,7 @@ arr = np.array(csv_file)
 i_eco = 0
 eco = []
 
-while i_eco < 635: #635 is hard coded
+while i_eco < 635: #635 is hard coded - NEED TO MAKE THIS MORE FLUID
     
     date_less = arr[i_eco][0]
     time_less = arr[i_eco][2]
