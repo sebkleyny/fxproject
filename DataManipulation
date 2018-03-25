@@ -1,0 +1,75 @@
+Sub ProcessFiles()
+    Dim Filename, Pathname As String
+    Dim wb As Workbook
+
+    Pathname = ActiveWorkbook.Path & "/Users/sebkleynhans/Desktop/OandaFX/Interest Rate Decisions Analysis [t Range -0.0125 to 0.125] "
+    Filename = Dir(Pathname & "*.xls")
+    Do While Filename <> ""
+        Set wb = Workbooks.Open(Pathname & Filename)
+        DoWork wb
+        wb.Close SaveChanges:=True
+        Filename = Dir()
+    Loop
+End Sub
+
+Sub DoWork(wb As Workbook)
+    With wb
+        
+    'Time Formatting
+           
+    Dim x As Integer
+    Dim n As Integer
+        
+    Columns(4).EntireColumn.Delete
+
+    Range("A1:J1").Font.FontStyle = "Bold"
+    Range("A1:J1").Borders(xlEdgeBottom).LineStyle = xlContinuous
+    
+    Range("B:C").EntireColumn.Insert
+        
+    Cells(1, 2) = "time - Excel Values"
+    Cells(1, 3) = "Standardised Time"
+    
+    n_TF = WorksheetFunction.CountA(Columns(1))
+    
+    Range(Cells(2, 1), Cells(n_TF, 1)).Copy _
+        Destination:=Range(Cells(2, 2), Cells(n_TF, 2))
+    
+    Range(Cells(2, 2), Cells(n_TF, 2)).NumberFormat = "General"
+
+    
+    For x_TF = 2 To n_TF
+            Cells(x_TF, 3) = Cells(x_TF, 2) - (Cells(2, 2) + 0.0125)
+    Next x_TF
+    
+    Range(Cells(2, 3), Cells(n_TF, 3)).NumberFormat = "General"
+    
+    'Long and Short Calcs
+        
+    Range("L:M").EntireColumn.Insert
+    
+    Cells(1, 12) = "Long"
+    Cells(1, 13) = "Short"
+    
+    n_LS = WorksheetFunction.CountA(Columns(1))
+    
+    If Cells(30, 4) > Cells(20, 4) Then
+    
+        For x = 2 To n_LS
+            Cells(x, 12) = 10000 * (Cells(x, 7) - Cells(2, 10)) / Cells(2, 10)
+            Cells(x, 13) = 10000 * (Cells(2, 11) - Cells(x, 6)) / Cells(2, 11)
+        Next x
+    
+    Else
+    
+         For x = 2 To n_LS0
+            Cells(x, 12) = 10000 * (Cells(x, 9) - Cells(2, 10)) / Cells(2, 10)
+            Cells(x, 13) = 10000 * (Cells(2, 11) - Cells(x, 8)) / Cells(2, 11)
+        Next x
+    
+    End If
+
+
+    End With
+
+End Sub
