@@ -1,3 +1,9 @@
+THIS IS CODE FOR VBA MACROS !!!!
+
+CALCULATING THE PROFIT (BPS) FOR EACH LONG AND SHORT POSITION
+
+---------------------------------------
+
 Sub ProcessFiles()
     Dim Filename, Pathname As String
     Dim wb As Workbook
@@ -11,6 +17,8 @@ Sub ProcessFiles()
         Filename = Dir()
     Loop
 End Sub
+
+---------------------------------------------
 
 Sub DoWork(wb As Workbook)
     With wb
