@@ -1,5 +1,6 @@
 import os
 import math
+import sqlite3
 import numpy as np
 import pandas as pd
 
@@ -15,14 +16,9 @@ import pandas as pd
 
 currencypair = ["BoC" , "BoE" , "BoJ" , "ECB" , "Fed" , "RBA" , "RBNZ" , "SNB"]
 
-#writing the template excel doc
-writer = pd.ExcelWriter('THIRD_ITERATION_13to36mins_Granularity1min_and5bps.xlsx' , engine='xlsxwriter' )
-
 #Creating the analysis function using country as input
 def Currencyanalysis(Country):
-    
-    dataframe_country = pd.DataFrame([]) # creating data frame for currency list (in order to concatanate with prices)
-    
+
     #imorting Event Data CSV list
     csv_list = os.listdir('/Users/sebkleynhans/Desktop/OandaFX/18Jan - Interest Rate Decisions Analysis [t Range -0.0125 to 0.125]/Interest Rate Decisions Analysis [t Range -0.0125 to 0.125]/')
 
@@ -34,34 +30,31 @@ def Currencyanalysis(Country):
     while a < r:
 
         if Country in csv_list[a]:
-            
-            dataframe = pd.DataFrame([]) # creating data frame for LVSV values
-            dataframe_exit = pd.DataFrame([]) # creating data frame for exit values
-            dataframe_premium = pd.DataFrame([]) # data frame for the premium values
-            dataframe_optimisation = pd.DataFrame([]) # creating data frame for the combination of exit and premium values
-            
+
             #loading csv data: pandas to read the csv + numpy to form an array and collate the data
             data = pd.read_csv('/Users/sebkleynhans/Desktop/OandaFX/18Jan - Interest Rate Decisions Analysis [t Range -0.0125 to 0.125]/Interest Rate Decisions Analysis [t Range -0.0125 to 0.125]/'+csv_list[a], sep=',')
             
             data_array = np.array(data) #note - that after you import the csv you need to put it into an array (through numpy)
 
             array_length = len(data_array)
-    
-            # finding max and min for sv and lv
-            max_lv = data_array[:,11].max()
-            max_sv = data_array[:,12].max()
-            min_lv = data_array[:,11].min()
-            min_sv = data_array[:,12].min()
 
             #OPTIMISATION MATRICES
-            #1st iteration: start texit value 20 mins (0.01387) rounded up and finish at 90 mins (0.062415) rounded up
+            #1st iteration:
             
-            #2nd iteration: start texit value 0 mins and finish at 20 mins
+            #----------------------------------------------------------------------
+            ########INPUT VALUES############
             
-            ###########TIME RANGE - ENTER START AND END VALUES HERE - make sure to be as granular as possible !
-            texit_start = 13
-            texit_end = 36
+            #TIME RANGE - ENTER START AND END VALUES HERE !
+            texit_start = -5
+            texit_end = 150
 
+            #####CHOOSE PREMIUM RANGE AND GRANULARITY HERE
+            premium_end = 50
+            premium_granularity = 5
+
+            #----------------------------------------------------------------------
+            #SLICING DATAFRAMES AND ESTABLISHING CONDITIONS TO ESTABLISH WINNING AND LOSING POSITIONS FOR DATA STRUCTURING
+            
             #converting standarised time values to minutes after event
             time_conversion = 20 / 0.013888889
 
@@ -97,72 +90,99 @@ def Currencyanalysis(Country):
                 i = i + 1
             
             exit_array_length = len(lv_exit) - 1
-            profit_position = []
+            winning_position = []
+            losing_position = []
             
-            #FIND A BETTER CONDITION !!!
-            #finding the position that is profiting and deisgnating the array to the profit position
-            if lv_exit[exit_array_length] > 0:
-                profit_position = lv_exit
+            #ESTABLISHING CONDITIONS TO DEFINE WINNING AND LOSING POSITIONS
+            #the winning position has the greater amount of positive numbers than the losing position
 
-            if sv_exit[exit_array_length] > 0:
-                profit_position = sv_exit     #NOTE - that if both positions (at the max(exit) time) are negative than no result will be provided
-        
-            #TEMPORARY SOLUTION !!!!
+            pos_lv = sum(1 for p in lv_exit if p > 0)
+            pos_sv = sum(1 for n in sv_exit if n > 0)
+            
+            #LONG position has more positive numbers (profiting)
+            if pos_lv > pos_sv:
+                winning_position = lv_exit
+                losing_position = sv_exit
+            
+            #SHORT position has more positive numbers (profiting)
+            if pos_sv > pos_lv:
+                winning_position = sv_exit
+                losing_position = lv_exit
+            
+            #NOTE - that if both positions have an equal amount of positive numbers than the long is taken as the winning position
             else:
-                profit_position = lv_exit
-
+                winning_position = lv_exit
+                losing_position = sv_exit
+            
             #Converting the standardised time into: "Minutes after event"
             time_value_array = [ round(x * time_conversion) for x in time_value_array ]
 
+            #----------------------------------------------------------------------
             #STRUCTURING THE DATA
-            #Name----------------
-            dataframe = dataframe.append(pd.DataFrame({ 'FX Pair' : [csv_list[a]] , 'Max LV' : max_lv , 'Min LV' : min_lv , 'Max SV' : max_sv , 'Min SV' : min_sv}))
-            dataframe = pd.DataFrame.sort_index(dataframe) #sorting the index/dates of event into ascending order
-
-            #re-arranging columns in the dataframe
-            dataframe = dataframe[[ 'FX Pair' , 'Max LV' ,  'Min LV' , 'Max SV' , 'Min SV' ]]
-
             #Exit values - the array of profiting positions----------
-            dataframe_exit = pd.DataFrame({'Profit - Exit' : profit_position } , index = [time_value_array])
-            dataframe_exit = pd.DataFrame.transpose(dataframe_exit)
 
-            #Adding the premium colums
-            #####CHOOSE PREMIUM RANGE AND GRANULARITY HERE
-            premium_end = 55
-            premium_granularity = 5
+            #creating an empty dataframe with the max time range (i.e. including missing data points)
+            max_time_range = list(range(texit_start, texit_end + 1))
+
+            df_exit = pd.DataFrame({'Time' : max_time_range } ) # creating data frame for maximum time values
+            df_w = pd.DataFrame( {'Time' : time_value_array , '0' : winning_position } ) #creating dataframe for the winning values
+            df_l = pd.DataFrame( {'Time' : time_value_array , '0' : losing_position } ) #creating dataframe for the losing values
             
+            #Merging the two dataframes - to create the WINNING position Dataframe
+            df_merge_w = pd.merge(df_exit , df_w , on = 'Time' ,how = 'left' )
+            df_merge_w.set_index('Time' , inplace = True)
+            df_merge_w = df_merge_w.transpose()
+            
+            #Merging the two dataframes - to create the LOSING position Dataframe
+            df_merge_l = pd.merge(df_exit , df_l , on = 'Time' ,how = 'left' )
+            df_merge_l.set_index('Time' , inplace = True)
+            df_merge_l = df_merge_l.transpose()
+
             #Premium dataframe
-            premium_list = pd.Series(range(5 , premium_end , premium_granularity))
-            dataframe_premium = dataframe_premium.append(premium_list , ignore_index = True ).transpose()
+            df_premium = pd.DataFrame([]) # creating data frame for premium
+            premium_list = pd.Series(range(0 , premium_end + premium_granularity , premium_granularity))
+            df_premium = pd.DataFrame({'Premium' : premium_list} )
             
-            #adding the exit and premium values into the optimisation matrix
-            dataframe_optimisation = dataframe_optimisation.append(dataframe_exit)
-            dataframe_optimisation = dataframe_optimisation.append(dataframe_premium)
-            
-            #OPTIMISATION CALCS: (Texit - Premium calcs)
-            #creating range to put into the for loop (NB: for loops can only work through lists)
-            premium_range = list(range(0 , len(premium_list) )) #fy
-            exit_range = time_value_array  #fx
+            #creating temporary colums to merge both data frates
+            df_merge_w['tmp'] = 1
+            df_premium['tmp'] = pd.Series(range(1 , len(df_premium) + 1))
 
-            print(dataframe_exit)
-            #NEED TO SOLVE FOR THE BLANK DATA POINTS
-            #NB: fy = exit value & fx = premium
+            #Merging exit and premium values to form the optimisation matrix
+            df_optimisation = pd.merge(df_merge_w , df_premium , on = ['tmp'] , how = 'outer')
+            df_optimisation = df_optimisation.drop('tmp', axis=1)
+            df_optimisation = df_optimisation.set_index('Premium')
+
+            #----------------------------------------------------------------------
+            #OPTIMISATION CALCS: (Profit = Texit - Premium calcs)
+            exit_range = max_time_range #fx
+            premium_range = list(range(0 ,len(premium_list) )) #fy
+
+            #NB: fx = exit value & fy = premium
             for fx in exit_range:
                 for fy in premium_range:
-                    dataframe_optimisation.loc[fy,fx] = dataframe_exit.iat[0,fx - texit_start] - dataframe_premium.iat[fy,0]
+                    #Finding when the losing position hits the premium
+                    #defining the net position (or "Winning Position") as Profit - Premium when the "Losing position" has hit the premium
+                    if -df_premium.iloc[fy,0] >= df_merge_l.iloc[0, fx - texit_start]:
+                        df_optimisation.loc[fy * premium_granularity ,fx] = df_merge_w.iloc[0,fx - texit_start ] - df_premium.iloc[fy,0]
+                    #defining the net position (or "Winning Position") as Profit + Loss when the "Losing position" hits not the premium
+                    else:
+                        df_optimisation.loc[fy * premium_granularity ,fx] = df_merge_w.iloc[0,fx - texit_start ] + df_merge_l.iloc[0, fx - texit_start]
+  
+            #----------------------------------------------------------------------
+            #SAVING ONTO A SQL DATA BASE
+            conn = sqlite3.connect('Optimisation_InterestRateDecisions.db')
+            c = conn.cursor()
 
-            print(dataframe_optimisation)
-            #COMBINING FINAL DATAFRAMES
-            dataframe_country = dataframe_country.append(dataframe)
-            dataframe_country = dataframe_country.append(dataframe_optimisation)
-
-            #creating the csv with the data
-            dataframe_country.to_excel( writer, sheet_name = Country )
-    
+            #Creating SQL tables
+            df_optimisation.to_sql(csv_list[a] , conn )
+            
+            conn.close
+            c.close
+                
         a = a + 1
 
 for c in currencypair:
     Currencyanalysis(c)
 
-#saving the final output excel file
-writer.save()
+
+
