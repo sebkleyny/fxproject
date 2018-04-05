@@ -1,0 +1,51 @@
+import os
+import math
+import sqlite3
+import numpy as np
+import pandas as pd
+
+#Currency pairs list:
+#Canada USDCAD BoC
+#England GBPUSD BoE
+#Japan USDJPY BoJ
+#Euro EURUSD ECB
+#US EURUSD Fed
+#Aus AUDUSD RBA
+#New Zealand NZDUSD RBNZ
+#Swiss USDCHF SNB
+
+conn = sqlite3.connect("Optimisation_InterestRateDecisions.db")
+c = conn.cursor()
+
+currencypair = ["BoC" , "BoE" , "BoJ" , "ECB" , "Fed" , "RBA" , "RBNZ" , "SNB"]
+
+#finding and listing all tables in the DataFrame
+t = c.execute("SELECT name FROM sqlite_master WHERE type='table'")
+t = c.fetchall()
+    
+#Cleaning the data from the list
+table_list = []
+for name in t:
+    table_list.append(name[0])
+
+
+def read_from_db(Country):
+
+    #setting parameters for the while loop
+    tlist_len = len(table_list)
+    i = 0
+    
+    while i < tlist_len:
+        if Country in table_list[i]:
+            query = "SELECT * FROM '{}'".format(table_list[i])
+            table_data = pd.read_sql_query(query, conn).set_index('Premium')
+            print(table_list[i])
+            print(table_data)
+
+        i = i + 1
+
+for a in currencypair:
+   read_from_db(a)
+
+c.close()
+conn.close()
